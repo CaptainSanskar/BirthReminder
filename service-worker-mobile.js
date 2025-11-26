@@ -1,0 +1,1 @@
+// Mobile-optimized Service Worker for Android APK

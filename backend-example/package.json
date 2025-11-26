@@ -1,0 +1,14 @@
+{
+  "name": "cakewait-notification-backend",
+  "version": "1.0.0",
+  "description": "Backend service for sending birthday notifications via Firebase",
+  "main": "sendNotification.js",
+  "scripts": {
+    "test": "node sendNotification.js",
+    "start": "node scheduler.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "node-cron": "^3.0.3"
+  }
+}
