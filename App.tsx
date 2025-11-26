@@ -7,8 +7,6 @@ import { CalendarView } from './components/CalendarView';
 import { WelcomeModal } from './components/WelcomeModal';
 import { ReviewView } from './components/ReviewView';
 import { syncToIndexedDB, registerServiceWorker } from './utils/storage';
-import { notificationService } from './utils/notificationService';
-import { notificationChecker } from './utils/notificationChecker';
 import { Plus, Calendar as CalendarIcon, Home, Settings, Bell, Search, Gift, Sparkles, Zap, Edit2, Camera, Moon, Sun, MessageSquare } from 'lucide-react';
 
 const STORAGE_KEY = 'cakewait_birthdays';
@@ -35,20 +33,10 @@ export default function App() {
 
   // Load data
   useEffect(() => {
-    // 1. Register Service Worker for background notifications
+    // 1. Register Service Worker for notifications
     registerServiceWorker();
-    
-    // 2. Initialize Firebase Notification Service
-    notificationService.initialize();
-    
-    // 3. Start aggressive notification checker (especially for APK)
-    const isNotificationsEnabled = localStorage.getItem('notifications_enabled') === 'true';
-    if (isNotificationsEnabled) {
-      console.log('🔔 Starting notification checker');
-      notificationChecker.start();
-    }
 
-    // 4. Load Data
+    // 2. Load Data
     const savedBirthdays = localStorage.getItem(STORAGE_KEY);
     const savedUser = localStorage.getItem(USER_KEY);
     const savedGender = localStorage.getItem(GENDER_KEY);
@@ -80,11 +68,8 @@ export default function App() {
         setTheme(savedTheme as 'dark' | 'light');
     }
     
-    // Check notification status from multiple sources
-    const savedNotificationStatus = localStorage.getItem('notifications_enabled');
-    if (savedNotificationStatus === 'true') {
-        setNotificationsEnabled(true);
-    } else if ('Notification' in window && Notification.permission === 'granted') {
+    // Check if notifications are enabled
+    if ('Notification' in window && Notification.permission === 'granted') {
         setNotificationsEnabled(true);
         localStorage.setItem('notifications_enabled', 'true');
     }
@@ -162,139 +147,51 @@ export default function App() {
 
   const handleRequestNotification = async () => {
     try {
-        // Check if we're in a mobile app or WebView
-        const isWebView = /wv|WebView/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
-        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-        const isMobile = isWebView || isAndroid || isIOS;
+        console.log('🔔 Requesting notification permission...');
         
-        console.log('📱 Device detection:', { isWebView, isAndroid, isIOS, isMobile });
+        // Simple, clean approach
+        if (!('Notification' in window)) {
+            alert('Notifications are not supported in your browser.');
+            return;
+        }
         
-        // For mobile/WebView - simplified approach
-        if (isMobile) {
-            console.log('📱 Mobile/WebView detected - enabling notifications');
-            
-            // Just enable notifications - they will work through service worker
+        // Request permission
+        const permission = await Notification.requestPermission();
+        console.log('Notification permission:', permission);
+        
+        if (permission === 'granted') {
             setNotificationsEnabled(true);
             localStorage.setItem('notifications_enabled', 'true');
+            console.log('✅ Notifications enabled');
             
-            // Try to show a test notification if possible
+            // Show test notification via service worker
             if ('serviceWorker' in navigator) {
                 try {
-                    // First check if we can request permission
-                    if ('Notification' in window && Notification.permission === 'default') {
-                        const permission = await Notification.requestPermission();
-                        console.log('Notification permission:', permission);
-                    }
-                    
-                    // Try to show notification via service worker
                     const registration = await navigator.serviceWorker.ready;
+                    
                     await registration.showNotification('🎉 Notifications Enabled!', {
                         body: 'You will receive birthday reminders',
                         icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-                        badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
                         vibrate: [200, 100, 200],
-                        tag: 'test-notification',
-                        silent: false
+                        tag: 'test'
                     });
+                    
                     console.log('✅ Test notification shown');
-                } catch (notifError) {
-                    console.log('Test notification failed (this is OK):', notifError);
-                    // Don't show error to user - notifications are still enabled
-                }
-                
-                // Trigger birthday check
-                try {
-                    if (navigator.serviceWorker.controller) {
-                        navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
-                    }
-                } catch (msgError) {
-                    console.log('Could not trigger birthday check:', msgError);
-                }
-            }
-            
-            // Start the aggressive notification checker
-            notificationChecker.start();
-            
-            // Test notification immediately
-            setTimeout(() => {
-                notificationChecker.testNotification();
-            }, 1000);
-            
-            // Show success message
-            alert('✅ Birthday notifications enabled!\n\nYou will receive reminders for:\n• Today\'s birthdays\n• Tomorrow\'s birthdays\n• Birthdays in 7 days\n\nA test notification will appear shortly.');
-            
-            return;
-        }
-        
-        // Desktop browser flow
-        if (!('Notification' in window)) {
-            alert('Notifications are not supported in your browser. Please try using Chrome, Firefox, or Edge.');
-            return;
-        }
-        
-        // Check if we're on a secure context (HTTPS or localhost)
-        if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost')) {
-            console.warn('Notifications require HTTPS');
-        }
-        
-        // Try Firebase notification service first
-        try {
-            const token = await notificationService.requestPermission();
-            
-            if (token) {
-                setNotificationsEnabled(true);
-                console.log('✅ Firebase notifications enabled. Token:', token);
-                
-                // Trigger SW check immediately
-                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
-                }
-                return;
-            }
-        } catch (firebaseError) {
-            console.log('Firebase notification setup failed, using fallback:', firebaseError);
-        }
-        
-        // Fallback to regular browser notification
-        console.log('Using browser notification fallback...');
-        const result = await Notification.requestPermission();
-        
-        if (result === 'granted') {
-            setNotificationsEnabled(true);
-            console.log('✅ Browser notifications enabled');
-            
-            // Wait for service worker to be ready before showing notification
-            if ('serviceWorker' in navigator) {
-                try {
-                    const registration = await navigator.serviceWorker.ready;
                     
-                    // Show a test notification
-                    await registration.showNotification('🎉 Notifications Enabled!', {
-                        body: 'You will now receive birthday reminders',
-                        icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-                        badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-                        vibrate: [200, 100, 200],
-                        tag: 'test-notification'
-                    });
-                    
-                    console.log('✅ Test notification sent');
-                    
-                    // Trigger SW check immediately
+                    // Trigger birthday check
                     if (navigator.serviceWorker.controller) {
                         navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
                     }
                 } catch (swError) {
-                    console.warn('Service worker not ready yet:', swError);
-                    // Still set as enabled even if SW isn't ready
+                    console.warn('SW notification failed:', swError);
                 }
             }
-        } else if (result === 'denied') {
-            alert('Notifications were blocked. Please enable them in your browser settings to receive birthday reminders.');
+        } else if (permission === 'denied') {
+            alert('Notifications were blocked. Please enable them in your browser settings.');
         }
     } catch (error) {
         console.error('Error requesting notifications:', error);
-        alert('There was an error enabling notifications. Please try again or check your browser settings.');
+        alert('Error enabling notifications. Please try again.');
     }
   };
 

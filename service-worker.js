@@ -1,41 +1,45 @@
-// service-worker.js
-const CACHE_NAME = 'cakewait-v1';
+// CakeWait Service Worker - Clean Rebuild
+const CACHE_NAME = 'cakewait-v2';
 const DB_NAME = 'BirthdayDB';
 const DB_VERSION = 1;
 
+console.log('🎂 CakeWait Service Worker v2 loaded');
+
 // Install Service Worker
 self.addEventListener('install', function(event) {
-  console.log('Service Worker: Installing...');
-  self.skipWaiting(); // Activate immediately
+  console.log('✅ Service Worker: Installing...');
+  self.skipWaiting();
   
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      // Use relative paths to support sub-directory deployment
       return cache.addAll([
         './',
         './index.html',
         './manifest.json'
-      ]);
+      ]).catch(err => console.log('Cache failed:', err));
     })
   );
 });
 
 // Activate Service Worker
 self.addEventListener('activate', function(event) {
-  console.log('Service Worker: Activated');
+  console.log('✅ Service Worker: Activated');
   event.waitUntil(
-    self.clients.claim().then(() => {
-      console.log('Service Worker claimed clients');
-      // Start checking birthdays immediately
-      return checkBirthdaysAndNotify();
+    Promise.all([
+      self.clients.claim(),
+      // Clean old caches
+      caches.keys().then(keys => {
+        return Promise.all(
+          keys.filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        );
+      })
+    ]).then(() => {
+      console.log('✅ Service Worker ready');
+      // Check birthdays after activation
+      checkBirthdaysAndNotify();
     })
   );
-});
-
-// Check birthdays when SW starts
-self.addEventListener('install', function(event) {
-  console.log('Service Worker: Installing...');
-  self.skipWaiting();
 });
 
 // Periodic Background Sync
@@ -200,21 +204,10 @@ self.addEventListener('notificationclick', function(event) {
 });
 
 self.addEventListener('message', function(event) {
-  console.log('Service Worker received message:', event.data);
-  if (event.data.action === 'checkBirthdays') {
+  console.log('📨 SW received message:', event.data);
+  
+  if (event.data && event.data.action === 'checkBirthdays') {
+    console.log('🔍 Checking birthdays on request...');
     event.waitUntil(checkBirthdaysAndNotify());
-  } else if (event.data.action === 'testNotification') {
-    // Test notification requested
-    event.waitUntil(
-      self.registration.showNotification('🎂 Test Notification', {
-        body: 'CakeWait notifications are working!',
-        icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-        badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-        vibrate: [200, 100, 200, 100, 200],
-        tag: 'test',
-        requireInteraction: false,
-        silent: false
-      })
-    );
   }
 });
