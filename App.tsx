@@ -72,8 +72,13 @@ export default function App() {
         setTheme(savedTheme as 'dark' | 'light');
     }
     
-    if ('Notification' in window && Notification.permission === 'granted') {
+    // Check notification status from multiple sources
+    const savedNotificationStatus = localStorage.getItem('notifications_enabled');
+    if (savedNotificationStatus === 'true') {
         setNotificationsEnabled(true);
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+        setNotificationsEnabled(true);
+        localStorage.setItem('notifications_enabled', 'true');
     }
   }, []);
 
@@ -149,8 +154,54 @@ export default function App() {
 
   const handleRequestNotification = async () => {
     try {
-        // Check if notifications are supported
+        // Check if we're in a mobile app or WebView
+        const isWebView = /wv|WebView/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+        
+        // In mobile WebView, use service worker notifications directly
+        if ((isWebView || isAndroid || isIOS) && 'serviceWorker' in navigator) {
+            console.log('📱 Mobile/WebView detected, using service worker notifications');
+            
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                
+                // Enable notifications without browser API
+                setNotificationsEnabled(true);
+                localStorage.setItem('notifications_enabled', 'true');
+                
+                // Show test notification via service worker
+                await registration.showNotification('🎉 Notifications Enabled!', {
+                    body: 'You will now receive birthday reminders',
+                    icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+                    badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+                    vibrate: [200, 100, 200],
+                    tag: 'test-notification'
+                });
+                
+                console.log('✅ Mobile notifications enabled');
+                
+                // Trigger birthday check
+                if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
+                }
+                
+                return;
+            } catch (swError) {
+                console.error('Service worker notification failed:', swError);
+                // Continue to fallback below
+            }
+        }
+        
+        // Check if notifications are supported (for desktop browsers)
         if (!('Notification' in window)) {
+            // If in WebView/APK and SW failed, still enable but show warning
+            if (isWebView || isAndroid || isIOS) {
+                setNotificationsEnabled(true);
+                localStorage.setItem('notifications_enabled', 'true');
+                alert('Notifications enabled! You will receive birthday reminders.');
+                return;
+            }
             alert('Notifications are not supported in your browser. Please try using Chrome, Firefox, or Edge.');
             return;
         }

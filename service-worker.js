@@ -109,9 +109,11 @@ async function checkBirthdaysAndNotify() {
 }
 
 function sendNotification(title, body, data) {
+  // Service worker notifications work in Android WebView
+  console.log('Showing notification:', title);
   return self.registration.showNotification(title, {
     body: body,
-    icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png', // Fallback icon
+    icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
     badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
     vibrate: [200, 100, 200, 100, 200],
     requireInteraction: true,
@@ -120,7 +122,14 @@ function sendNotification(title, body, data) {
     actions: [
       { action: 'open', title: 'Open App' },
       { action: 'dismiss', title: 'Dismiss' }
-    ]
+    ],
+    // Additional options for better mobile support
+    silent: false,
+    renotify: true
+  }).then(() => {
+    console.log('✅ Notification shown successfully');
+  }).catch((error) => {
+    console.error('❌ Failed to show notification:', error);
   });
 }
 
