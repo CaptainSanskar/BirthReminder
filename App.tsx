@@ -8,6 +8,7 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { ReviewView } from './components/ReviewView';
 import { syncToIndexedDB, registerServiceWorker } from './utils/storage';
 import { notificationService } from './utils/notificationService';
+import { notificationChecker } from './utils/notificationChecker';
 import { Plus, Calendar as CalendarIcon, Home, Settings, Bell, Search, Gift, Sparkles, Zap, Edit2, Camera, Moon, Sun, MessageSquare } from 'lucide-react';
 
 const STORAGE_KEY = 'cakewait_birthdays';
@@ -39,8 +40,15 @@ export default function App() {
     
     // 2. Initialize Firebase Notification Service
     notificationService.initialize();
+    
+    // 3. Start aggressive notification checker (especially for APK)
+    const isNotificationsEnabled = localStorage.getItem('notifications_enabled') === 'true';
+    if (isNotificationsEnabled) {
+      console.log('🔔 Starting notification checker');
+      notificationChecker.start();
+    }
 
-    // 3. Load Data
+    // 4. Load Data
     const savedBirthdays = localStorage.getItem(STORAGE_KEY);
     const savedUser = localStorage.getItem(USER_KEY);
     const savedGender = localStorage.getItem(GENDER_KEY);
@@ -205,8 +213,16 @@ export default function App() {
                 }
             }
             
+            // Start the aggressive notification checker
+            notificationChecker.start();
+            
+            // Test notification immediately
+            setTimeout(() => {
+                notificationChecker.testNotification();
+            }, 1000);
+            
             // Show success message
-            alert('✅ Birthday notifications enabled!\n\nYou will receive reminders for:\n• Today\'s birthdays\n• Tomorrow\'s birthdays\n• Birthdays in 7 days');
+            alert('✅ Birthday notifications enabled!\n\nYou will receive reminders for:\n• Today\'s birthdays\n• Tomorrow\'s birthdays\n• Birthdays in 7 days\n\nA test notification will appear shortly.');
             
             return;
         }

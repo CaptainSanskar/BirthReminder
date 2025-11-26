@@ -23,9 +23,19 @@ self.addEventListener('install', function(event) {
 // Activate Service Worker
 self.addEventListener('activate', function(event) {
   console.log('Service Worker: Activated');
-  event.waitUntil(self.clients.claim());
-  // Start checking birthdays immediately
-  checkBirthdaysAndNotify();
+  event.waitUntil(
+    self.clients.claim().then(() => {
+      console.log('Service Worker claimed clients');
+      // Start checking birthdays immediately
+      return checkBirthdaysAndNotify();
+    })
+  );
+});
+
+// Check birthdays when SW starts
+self.addEventListener('install', function(event) {
+  console.log('Service Worker: Installing...');
+  self.skipWaiting();
 });
 
 // Periodic Background Sync
@@ -190,7 +200,21 @@ self.addEventListener('notificationclick', function(event) {
 });
 
 self.addEventListener('message', function(event) {
+  console.log('Service Worker received message:', event.data);
   if (event.data.action === 'checkBirthdays') {
     event.waitUntil(checkBirthdaysAndNotify());
+  } else if (event.data.action === 'testNotification') {
+    // Test notification requested
+    event.waitUntil(
+      self.registration.showNotification('🎂 Test Notification', {
+        body: 'CakeWait notifications are working!',
+        icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+        badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+        vibrate: [200, 100, 200, 100, 200],
+        tag: 'test',
+        requireInteraction: false,
+        silent: false
+      })
+    );
   }
 });
