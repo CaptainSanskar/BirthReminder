@@ -158,50 +158,61 @@ export default function App() {
         const isWebView = /wv|WebView/.test(navigator.userAgent);
         const isAndroid = /Android/.test(navigator.userAgent);
         const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+        const isMobile = isWebView || isAndroid || isIOS;
         
-        // In mobile WebView, use service worker notifications directly
-        if ((isWebView || isAndroid || isIOS) && 'serviceWorker' in navigator) {
-            console.log('📱 Mobile/WebView detected, using service worker notifications');
+        console.log('📱 Device detection:', { isWebView, isAndroid, isIOS, isMobile });
+        
+        // For mobile/WebView - simplified approach
+        if (isMobile) {
+            console.log('📱 Mobile/WebView detected - enabling notifications');
             
-            try {
-                const registration = await navigator.serviceWorker.ready;
-                
-                // Enable notifications without browser API
-                setNotificationsEnabled(true);
-                localStorage.setItem('notifications_enabled', 'true');
-                
-                // Show test notification via service worker
-                await registration.showNotification('🎉 Notifications Enabled!', {
-                    body: 'You will now receive birthday reminders',
-                    icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-                    badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-                    vibrate: [200, 100, 200],
-                    tag: 'test-notification'
-                });
-                
-                console.log('✅ Mobile notifications enabled');
-                
-                // Trigger birthday check
-                if (navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
+            // Just enable notifications - they will work through service worker
+            setNotificationsEnabled(true);
+            localStorage.setItem('notifications_enabled', 'true');
+            
+            // Try to show a test notification if possible
+            if ('serviceWorker' in navigator) {
+                try {
+                    // First check if we can request permission
+                    if ('Notification' in window && Notification.permission === 'default') {
+                        const permission = await Notification.requestPermission();
+                        console.log('Notification permission:', permission);
+                    }
+                    
+                    // Try to show notification via service worker
+                    const registration = await navigator.serviceWorker.ready;
+                    await registration.showNotification('🎉 Notifications Enabled!', {
+                        body: 'You will receive birthday reminders',
+                        icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+                        badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+                        vibrate: [200, 100, 200],
+                        tag: 'test-notification',
+                        silent: false
+                    });
+                    console.log('✅ Test notification shown');
+                } catch (notifError) {
+                    console.log('Test notification failed (this is OK):', notifError);
+                    // Don't show error to user - notifications are still enabled
                 }
                 
-                return;
-            } catch (swError) {
-                console.error('Service worker notification failed:', swError);
-                // Continue to fallback below
+                // Trigger birthday check
+                try {
+                    if (navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
+                    }
+                } catch (msgError) {
+                    console.log('Could not trigger birthday check:', msgError);
+                }
             }
+            
+            // Show success message
+            alert('✅ Birthday notifications enabled!\n\nYou will receive reminders for:\n• Today\'s birthdays\n• Tomorrow\'s birthdays\n• Birthdays in 7 days');
+            
+            return;
         }
         
-        // Check if notifications are supported (for desktop browsers)
+        // Desktop browser flow
         if (!('Notification' in window)) {
-            // If in WebView/APK and SW failed, still enable but show warning
-            if (isWebView || isAndroid || isIOS) {
-                setNotificationsEnabled(true);
-                localStorage.setItem('notifications_enabled', 'true');
-                alert('Notifications enabled! You will receive birthday reminders.');
-                return;
-            }
             alert('Notifications are not supported in your browser. Please try using Chrome, Firefox, or Edge.');
             return;
         }
