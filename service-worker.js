@@ -49,14 +49,22 @@ async function checkBirthdaysAndNotify() {
     const birthdays = await getAllBirthdaysFromDB();
     
     if (!birthdays || birthdays.length === 0) {
+      console.log('No birthdays found in database');
       return;
     }
+    
+    console.log(`Checking ${birthdays.length} birthdays...`);
     
     const today = new Date();
     const todayMonth = today.getMonth();
     const todayDate = today.getDate();
     
     for (const birthday of birthdays) {
+      // Skip if notifications are disabled for this birthday
+      if (!birthday.notificationEnabled) {
+        continue;
+      }
+      
       // We need to parse the YYYY-MM-DD manually to match the logic in the app
       // which uses local time (split by '-')
       const parts = birthday.birthDate.split('-').map(Number);
@@ -67,6 +75,7 @@ async function checkBirthdaysAndNotify() {
       
       // Birthday is TODAY
       if (birthMonth === todayMonth && birthDay === todayDate) {
+        console.log(`🎂 Sending birthday notification for ${birthday.name}`);
         await sendNotification(
           '🎂 Birthday Today!',
           `It's ${birthday.name}'s birthday! Don't forget to wish them! 🎉`,
@@ -75,6 +84,7 @@ async function checkBirthdaysAndNotify() {
       }
       // Birthday is TOMORROW
       else if (daysUntil === 1) {
+        console.log(`⏰ Sending tomorrow reminder for ${birthday.name}`);
         await sendNotification(
           '⏰ Birthday Tomorrow',
           `${birthday.name}'s birthday is tomorrow! Get ready! 🎈`,
@@ -83,6 +93,7 @@ async function checkBirthdaysAndNotify() {
       }
       // Birthday is in 7 DAYS
       else if (daysUntil === 7) {
+        console.log(`📅 Sending week reminder for ${birthday.name}`);
         await sendNotification(
           '📅 Birthday Next Week',
           `${birthday.name}'s birthday is in 7 days`,
@@ -90,6 +101,8 @@ async function checkBirthdaysAndNotify() {
         );
       }
     }
+    
+    console.log('Birthday check complete');
   } catch (error) {
     console.error('Error checking birthdays:', error);
   }

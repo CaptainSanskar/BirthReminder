@@ -186,21 +186,30 @@ export default function App() {
             setNotificationsEnabled(true);
             console.log('✅ Browser notifications enabled');
             
-            // Trigger SW check immediately
-            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
-            }
-            
-            // Show a test notification
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.ready.then((registration) => {
-                    registration.showNotification('🎉 Notifications Enabled!', {
+            // Wait for service worker to be ready before showing notification
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    
+                    // Show a test notification
+                    await registration.showNotification('🎉 Notifications Enabled!', {
                         body: 'You will now receive birthday reminders',
                         icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
                         badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
-                        vibrate: [200, 100, 200]
+                        vibrate: [200, 100, 200],
+                        tag: 'test-notification'
                     });
-                });
+                    
+                    console.log('✅ Test notification sent');
+                    
+                    // Trigger SW check immediately
+                    if (navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
+                    }
+                } catch (swError) {
+                    console.warn('Service worker not ready yet:', swError);
+                    // Still set as enabled even if SW isn't ready
+                }
             }
         } else if (result === 'denied') {
             alert('Notifications were blocked. Please enable them in your browser settings to receive birthday reminders.');
