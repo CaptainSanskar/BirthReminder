@@ -14,7 +14,16 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+
+// Initialize messaging only if supported
+let messaging;
+try {
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    messaging = getMessaging(app);
+  }
+} catch (error) {
+  console.warn('Firebase Messaging not supported:', error);
+}
 
 export { app, messaging };
 
@@ -24,6 +33,12 @@ export { app, messaging };
  */
 export async function requestNotificationPermission(): Promise<string | null> {
   try {
+    // Check if messaging is initialized
+    if (!messaging) {
+      console.warn('Firebase Messaging not available, skipping FCM setup');
+      return null;
+    }
+    
     // Request permission
     const permission = await Notification.requestPermission();
     
@@ -34,15 +49,20 @@ export async function requestNotificationPermission(): Promise<string | null> {
       // VAPID key from Firebase Console: Project Settings > Cloud Messaging > Web Push certificates
       const vapidKey = 'BIelk3XThhbXGVpx6qhg79XEWL4IL6b8eGOsrskIiWogH1Kxg65GfN7x6r58tSjI808HkxTNeAzXqNIC39pF9Ps';
       
-      const token = await getToken(messaging, { vapidKey });
-      
-      if (token) {
-        console.log('FCM Token:', token);
-        // Store token in localStorage for later use
-        localStorage.setItem('fcm_token', token);
-        return token;
-      } else {
-        console.log('No registration token available.');
+      try {
+        const token = await getToken(messaging, { vapidKey });
+        
+        if (token) {
+          console.log('FCM Token:', token);
+          // Store token in localStorage for later use
+          localStorage.setItem('fcm_token', token);
+          return token;
+        } else {
+          console.log('No registration token available.');
+          return null;
+        }
+      } catch (tokenError) {
+        console.warn('Failed to get FCM token:', tokenError);
         return null;
       }
     } else {
@@ -59,6 +79,11 @@ export async function requestNotificationPermission(): Promise<string | null> {
  * Listen for foreground messages
  */
 export function onForegroundMessage(callback: (payload: any) => void) {
+  if (!messaging) {
+    console.warn('Firebase Messaging not available');
+    return;
+  }
+  
   onMessage(messaging, (payload) => {
     console.log('Message received in foreground:', payload);
     callback(payload);

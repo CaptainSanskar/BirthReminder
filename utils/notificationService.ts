@@ -22,19 +22,23 @@ export class NotificationService {
     if (this.initialized) return true;
 
     try {
-      // Setup foreground message listener
-      onForegroundMessage((payload) => {
-        console.log('Foreground notification received:', payload);
-        
-        // Show a custom notification or update UI
-        if (payload.notification) {
-          this.showCustomNotification(
-            payload.notification.title,
-            payload.notification.body,
-            payload.data
-          );
-        }
-      });
+      // Setup foreground message listener (only if Firebase is available)
+      try {
+        onForegroundMessage((payload) => {
+          console.log('Foreground notification received:', payload);
+          
+          // Show a custom notification or update UI
+          if (payload.notification) {
+            this.showCustomNotification(
+              payload.notification.title,
+              payload.notification.body,
+              payload.data
+            );
+          }
+        });
+      } catch (fbError) {
+        console.log('Firebase foreground messaging not available:', fbError);
+      }
 
       this.initialized = true;
       return true;

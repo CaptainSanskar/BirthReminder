@@ -148,31 +148,66 @@ export default function App() {
   };
 
   const handleRequestNotification = async () => {
-    if (!('Notification' in window)) {
-        alert('Notifications not supported on this device');
-        return;
-    }
-    
-    // Use Firebase notification service
-    const token = await notificationService.requestPermission();
-    
-    if (token) {
-        setNotificationsEnabled(true);
-        console.log('Firebase notifications enabled. Token:', token);
-        
-        // Trigger SW check immediately
-        if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
+    try {
+        // Check if notifications are supported
+        if (!('Notification' in window)) {
+            alert('Notifications are not supported in your browser. Please try using Chrome, Firefox, or Edge.');
+            return;
         }
-    } else {
-        // Fallback to regular notification if Firebase fails
+        
+        // Check if we're on a secure context (HTTPS or localhost)
+        if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost')) {
+            console.warn('Notifications require HTTPS');
+        }
+        
+        // Try Firebase notification service first
+        try {
+            const token = await notificationService.requestPermission();
+            
+            if (token) {
+                setNotificationsEnabled(true);
+                console.log('✅ Firebase notifications enabled. Token:', token);
+                
+                // Trigger SW check immediately
+                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
+                }
+                return;
+            }
+        } catch (firebaseError) {
+            console.log('Firebase notification setup failed, using fallback:', firebaseError);
+        }
+        
+        // Fallback to regular browser notification
+        console.log('Using browser notification fallback...');
         const result = await Notification.requestPermission();
+        
         if (result === 'granted') {
             setNotificationsEnabled(true);
-            if (navigator.serviceWorker.controller) {
+            console.log('✅ Browser notifications enabled');
+            
+            // Trigger SW check immediately
+            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
                 navigator.serviceWorker.controller.postMessage({ action: 'checkBirthdays' });
             }
+            
+            // Show a test notification
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.ready.then((registration) => {
+                    registration.showNotification('🎉 Notifications Enabled!', {
+                        body: 'You will now receive birthday reminders',
+                        icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+                        badge: 'https://cdn-icons-png.flaticon.com/512/4213/4213652.png',
+                        vibrate: [200, 100, 200]
+                    });
+                });
+            }
+        } else if (result === 'denied') {
+            alert('Notifications were blocked. Please enable them in your browser settings to receive birthday reminders.');
         }
+    } catch (error) {
+        console.error('Error requesting notifications:', error);
+        alert('There was an error enabling notifications. Please try again or check your browser settings.');
     }
   };
 
